@@ -1,84 +1,86 @@
-/* 艦娘一覧変換器 Ver.1.1 */
+/* kam_cnv(一覧変換器) */
 
-	#packopt name "kam_cnv"
+// exeファイル名
+#packopt name "kam_cnv"
+// 真偽値
+#const TRUE  1
+#const FALSE 0
+// フォントサイズ
+#const font_size 12
+// 艦娘の種類数の最大値
+#const output_list_size 300
 
-	#const TRUE 1
-	#const FALSE 0
-	#const font_size 12
-	#const output_list_size 300
+#module
+	// 艦名→艦番号・改造段階に正引き
+	#deffunc getKammusuNumber str name_, var number, var step
+		name = name_
+		number = -1 :step = -1
+		// 艦名が完全一致する際の処理
+		for i, 0, kammusu_list_size@
+			if(name == kammusu_list_name@(i)){
+				number = kammusu_list_number@(i)
+				step   = kammusu_list_step@(i)
+				return
+			}
+		next
+		// 「艦名＋改」が一致する際の処理
+		for i, 0, kammusu_list_size@
+			if(name == kammusu_list_name@(i) + "改"){
+				number = kammusu_list_number@(i)
+				step   = 2
+				return
+			}
+		next
+		// 「艦名＋改二」が一致する際の処理
+		for i, 0, kammusu_list_size@
+			if(name == kammusu_list_name@(i) + "改二"){
+				number = kammusu_list_number@(i)
+				step   = 3
+				return
+			}
+		next
+	return
+	// 艦番号・改造段階→艦名に逆引き
+	#defcfunc getKammusuName int number_, int step_
+		// 先に特殊ケースを処理する
+		for i, 0, kammusu_list_size@
+			if(number_ == kammusu_list_number@(i)){
+				if(step_ == kammusu_list_step@(i)) :return kammusu_list_name@(i)
+			}
+		next
+		// 普通のケースを処理する
+		for i, 0, kammusu_list_size@
+			if(number_ == kammusu_list_number@(i)){
+				if(step = 3) :return kammusu_list_name@(i) + "改二"
+				if(step = 2) :return kammusu_list_name@(i) + "改"
+				return kammusu_list_name@(i)
+			}
+		next
+	return ""
+#global
 
-	#module
-		#deffunc getKammusuNumber str name_, var number, var step
-			name = name_
-			number = -1 :step = -1
-			for i, 0, kammusu_list_size@
-				if(name == kammusu_list_name@(i)){
-					number = kammusu_list_number@(i)
-					step   = kammusu_list_step@(i)
-					return
-				}
-			next
-			for i, 0, kammusu_list_size@
-				if(name == kammusu_list_name@(i) + "改"){
-					number = kammusu_list_number@(i)
-					step   = 2
-					return
-				}
-			next
-			for i, 0, kammusu_list_size@
-				if(name == kammusu_list_name@(i) + "改二"){
-					number = kammusu_list_number@(i)
-					step   = 3
-					return
-				}
-			next
-		return
-		#defcfunc getKammusuName int number_, int step_
-			// 線形に検索
-			for i, 0, kammusu_list_size@
-				if(number_ == kammusu_list_number@(i)){
-					if(step_ == kammusu_list_step@(i)) :return kammusu_list_name@(i)
-				}
-			next
-			for i, 0, kammusu_list_size@
-				if(number_ == kammusu_list_number@(i)){
-					if(step = 3) :return kammusu_list_name@(i) + "改二"
-					if(step = 2) :return kammusu_list_name@(i) + "改"
-					return kammusu_list_name@(i)
-				}
-			next
-		return ""
-	#global
+// データベースを初期化
+gosub *init_kammusu_list
 
-	sdim text_data, 32000
-	sdim conv_data, 32000
-	gosub *init_kammusu_list
+// GUIを初期化
+// 変数を準備
+sdim text_data, 32000
+sdim conv_data, 32000
+mesbox_width_size = (400 - 10 * 3) / 2
+mesbox_height_size = 400 - 10 * 2 - font_size * 3
+// UIの部品を配置
+screen 0, 400, 400 :title "一覧変換器"
+font msgothic, font_size :objmode 1,0
+	pos 10, 10 :mes "平易なデータ"
+	pos 10 * 2 + mesbox_width_size, 10 :mes "当該ページ用データ"
+	pos 10, 10 + font_size :mesbox text_data, mesbox_width_size, mesbox_height_size
+	pos 10 * 2 + mesbox_width_size, 10 + font_size :mesbox conv_data, mesbox_width_size, mesbox_height_size
+objsize 80, font_size * 2
+	pos 10, 10 + font_size + mesbox_height_size :button "平易→当該", *text_to_conv
+	pos 10 * 2 + mesbox_width_size, 10 + font_size + mesbox_height_size :button "当該→平易", *conv_to_text
+stop
 
-	mesbox_width_size = (400 - 10 * 3) / 2
-	mesbox_height_size = 400 - 10 * 2 - font_size * 3
-
-	screen 0, 400, 400
-	title "一覧変換器"
-	font msgothic, font_size
-		objmode 1,0
-			pos 10, 10
-				mes "平易なデータ"
-			pos 10 * 2 + mesbox_width_size, 10
-				mes "当該ページ用データ"
-
-			pos 10, 10 + font_size
-				mesbox text_data, mesbox_width_size, mesbox_height_size
-			pos 10 * 2 + mesbox_width_size, 10 + font_size
-				mesbox conv_data, mesbox_width_size, mesbox_height_size
-
-			objsize 80, font_size * 2
-				pos 10, 10 + font_size + mesbox_height_size
-					button "平易→当該", *text_to_conv
-				pos 10 * 2 + mesbox_width_size, 10 + font_size + mesbox_height_size
-					button "当該→平易", *conv_to_text
-
-	stop
-
+// データベースを初期化
 *init_kammusu_list
 	notesel buf
 	noteload "list.csv"
@@ -95,18 +97,19 @@
 	loop
 return
 
+// 平易→当該
 *text_to_conv
 	sdim conv_data, 32768	//出力用
+	sdim error_log, 32000	// エラーログ用
+	notesel text_data
 	dim conv_data_number,     output_list_size		//艦娘一覧(番号)
 	sdim conv_data_level, 10, output_list_size		//艦娘一覧(レベル)
-	notesel text_data
 	p = 0
-	sdim error_log, 32000
 	repeat notemax
 		//1行読み込み
 		noteget getline, cnt
 		split getline, "\t", temp
-		//タブ区切り(「大井{タブ}75」とか)じゃないと弾く
+		//タブ区切り(「大井<タブ>75」とか)じゃないと弾く
 		if(stat >= 2){
 			//レベルが1以上じゃないと弾く
 			if(int(temp(1)) = 0) :continue
@@ -142,11 +145,14 @@ return
 		conv_data += "|" + conv_data_number(cnt) + ":" + conv_data_level(cnt)
 	loop
 	objprm 1, conv_data
-	if(error_log != "") :dialog error_log
+	// エラーログを表示
+	if(error_log != "") :dialog error_log, 1, "エラーログ"
 	stop
 
+// 当該→平易
 *conv_to_text
 	sdim text_data, 32768	//出力用
+	sdim error_log, 32000	// エラーログ用
 	split conv_data, "|", temp	//tempの例：「184:75.3,75.2,75.1」
 	if(stat < 2) :stop
 	kammusu_num = stat - 1
@@ -159,9 +165,11 @@ return
 			split temp3(i), ".", temp4	//temp4の例：「75」「3」
 			if(stat < 2) :step = 1 :else :step = int(temp4(1))
 			kammusu_name = getKammusuName(kammusu_number, step)
-			if(kammusu_name = "") :continue
+			if(kammusu_name = "") :error_log += "艦番号＝" + kammusu_number + ",改造段階＝" + step + "\n" :continue
 			text_data += kammusu_name + "\t" + str(int(temp4(0))) + "\n"
 		next
 	loop
 	objprm 0, text_data
+	// エラーログを表示
+	if(error_log != "") :dialog error_log, 1, "エラーログ"
 	stop
