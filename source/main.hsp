@@ -1,0 +1,167 @@
+/* 艦娘一覧変換器 Ver.1.1 */
+
+	#packopt name "kam_cnv"
+
+	#const TRUE 1
+	#const FALSE 0
+	#const font_size 12
+	#const output_list_size 300
+
+	#module
+		#deffunc getKammusuNumber str name_, var number, var step
+			name = name_
+			number = -1 :step = -1
+			for i, 0, kammusu_list_size@
+				if(name == kammusu_list_name@(i)){
+					number = kammusu_list_number@(i)
+					step   = kammusu_list_step@(i)
+					return
+				}
+			next
+			for i, 0, kammusu_list_size@
+				if(name == kammusu_list_name@(i) + "改"){
+					number = kammusu_list_number@(i)
+					step   = 2
+					return
+				}
+			next
+			for i, 0, kammusu_list_size@
+				if(name == kammusu_list_name@(i) + "改二"){
+					number = kammusu_list_number@(i)
+					step   = 3
+					return
+				}
+			next
+		return
+		#defcfunc getKammusuName int number_, int step_
+			// 線形に検索
+			for i, 0, kammusu_list_size@
+				if(number_ == kammusu_list_number@(i)){
+					if(step_ == kammusu_list_step@(i)) :return kammusu_list_name@(i)
+				}
+			next
+			for i, 0, kammusu_list_size@
+				if(number_ == kammusu_list_number@(i)){
+					if(step = 3) :return kammusu_list_name@(i) + "改二"
+					if(step = 2) :return kammusu_list_name@(i) + "改"
+					return kammusu_list_name@(i)
+				}
+			next
+		return ""
+	#global
+
+	sdim text_data, 32000
+	sdim conv_data, 32000
+	gosub *init_kammusu_list
+
+	mesbox_width_size = (400 - 10 * 3) / 2
+	mesbox_height_size = 400 - 10 * 2 - font_size * 3
+
+	screen 0, 400, 400
+	title "一覧変換器"
+	font msgothic, font_size
+		objmode 1,0
+			pos 10, 10
+				mes "平易なデータ"
+			pos 10 * 2 + mesbox_width_size, 10
+				mes "当該ページ用データ"
+
+			pos 10, 10 + font_size
+				mesbox text_data, mesbox_width_size, mesbox_height_size
+			pos 10 * 2 + mesbox_width_size, 10 + font_size
+				mesbox conv_data, mesbox_width_size, mesbox_height_size
+
+			objsize 80, font_size * 2
+				pos 10, 10 + font_size + mesbox_height_size
+					button "平易→当該", *text_to_conv
+				pos 10 * 2 + mesbox_width_size, 10 + font_size + mesbox_height_size
+					button "当該→平易", *conv_to_text
+
+	stop
+
+*init_kammusu_list
+	notesel buf
+	noteload "list.csv"
+	kammusu_list_size = notemax - 1
+	sdim kammusu_list_name, 10, kammusu_list_size
+	dim kammusu_list_number,    kammusu_list_size
+	dim kammusu_list_step,      kammusu_list_size
+	repeat notemax - 1
+		noteget get, cnt + 1
+		split get, ",", temp
+		kammusu_list_name(cnt)   =     temp(0)
+		kammusu_list_number(cnt) = int(temp(1))
+		kammusu_list_step(cnt)   = int(temp(2))
+	loop
+return
+
+*text_to_conv
+	sdim conv_data, 32768	//出力用
+	dim conv_data_number,     output_list_size		//艦娘一覧(番号)
+	sdim conv_data_level, 10, output_list_size		//艦娘一覧(レベル)
+	notesel text_data
+	p = 0
+	sdim error_log, 32000
+	repeat notemax
+		//1行読み込み
+		noteget getline, cnt
+		split getline, "\t", temp
+		//タブ区切り(「大井{タブ}75」とか)じゃないと弾く
+		if(stat >= 2){
+			//レベルが1以上じゃないと弾く
+			if(int(temp(1)) = 0) :continue
+			//艦娘がリストに載ってないと弾く
+			getKammusuNumber temp(0), kammusu_number, kammusu_step
+			if(kammusu_number < 0){
+				error_log += getline + "\n"
+				continue
+			}
+			//艦娘一覧に読み込んだ行の艦娘が載っているか調べる
+			//(向こうの仕様上、同一艦娘は同一項に置かないと駄目なので)
+			has_number_flg = FALSE
+			has_number_pos = -1
+			for i, 0, p
+				if(conv_data_number(i) = kammusu_number){
+					has_number_flg = TRUE
+					has_number_pos = i
+					_break
+				}
+			next
+			if(has_number_flg != FALSE){
+				conv_data_level(has_number_pos) += "," + temp(1) + "." + kammusu_step
+			}else{
+				conv_data_number(p) = kammusu_number
+				conv_data_level(p) = temp(1) + "." + kammusu_step
+				p++
+			}
+		}
+	loop
+	//出力用文字列を組み立てる
+	conv_data = ".2"
+	repeat p
+		conv_data += "|" + conv_data_number(cnt) + ":" + conv_data_level(cnt)
+	loop
+	objprm 1, conv_data
+	if(error_log != "") :dialog error_log
+	stop
+
+*conv_to_text
+	sdim text_data, 32768	//出力用
+	split conv_data, "|", temp	//tempの例：「184:75.3,75.2,75.1」
+	if(stat < 2) :stop
+	kammusu_num = stat - 1
+	repeat kammusu_num, 1
+		split temp(cnt), ":", temp2	//temp2の例：「184」「75.3,75.2,75.1」
+		kammusu_number = int(temp2(0))
+		split temp2(1), ",", temp3	//temp3の例：「75.3」「75.2」「75.1」
+		levels = stat
+		for i, 0, levels
+			split temp3(i), ".", temp4	//temp4の例：「75」「3」
+			if(stat < 2) :step = 1 :else :step = int(temp4(1))
+			kammusu_name = getKammusuName(kammusu_number, step)
+			if(kammusu_name = "") :continue
+			text_data += kammusu_name + "\t" + str(int(temp4(0))) + "\n"
+		next
+	loop
+	objprm 0, text_data
+	stop
